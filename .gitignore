@@ -1,0 +1,40 @@
+﻿# Dependencies and build artifacts
+node_modules/
+.pnpm-store/
+.next/
+.next-*
+dist/
+build/
+coverage/
+.turbo/
+
+# Local credentials and environment files
+.env
+.env.*
+!.env.example
+
+# User files, local databases, backups, and development tools
+uploads/
+backups/
+.data/
+.tools/
+pg-data/
+*.db
+*.dump
+*.log
+appendonlydir/
+
+# Test output
+playwright-report/
+test-results/
+blob-report/
+playwright/.cache/
+
+# Editor and operating system files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# TypeScript incremental metadata
+*.tsbuildinfo

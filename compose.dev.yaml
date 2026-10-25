@@ -1,0 +1,13 @@
+services:
+  postgres:
+    ports: ["127.0.0.1:5432:5432"]
+  redis:
+    ports: ["127.0.0.1:6379:6379"]
+  web:
+    environment:
+      SMTP_HOST: mailpit
+      SMTP_PORT: 1025
+  worker:
+    environment:
+      SMTP_HOST: mailpit
+      SMTP_PORT: 1025

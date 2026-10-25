@@ -1,0 +1,73 @@
+name: trang-truyen
+x-app: &app
+  env_file: .env
+  environment: &app-env
+    DATABASE_URL: postgresql://${POSTGRES_USER:-novel}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-novel}?connection_limit=10
+    REDIS_URL: redis://redis:6379
+    UPLOAD_DIR: /app/uploads
+  restart: unless-stopped
+  init: true
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-novel}
+      POSTGRES_USER: ${POSTGRES_USER:-novel}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+    volumes: ["db:/var/lib/postgresql/data"]
+    restart: unless-stopped
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"], interval: 10s, timeout: 5s, retries: 10 }
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes --maxmemory-policy noeviction
+    volumes: ["redis:/data"]
+    restart: unless-stopped
+    healthcheck: { test: ["CMD", "redis-cli", "ping"], interval: 10s, timeout: 5s, retries: 10 }
+  web:
+    <<: *app
+    build: { context: ., dockerfile: docker/Dockerfile, target: web }
+    volumes: ["uploads:/app/uploads"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    healthcheck: { test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"], interval: 30s, timeout: 10s, retries: 10, start_period: 90s }
+  worker:
+    <<: *app
+    build: { context: ., dockerfile: docker/Dockerfile, target: worker }
+    volumes: ["uploads:/app/uploads"]
+    depends_on:
+      web: { condition: service_healthy }
+    healthcheck: { test: ["CMD", "node", "-e", "const R=require('ioredis');const r=new R(process.env.REDIS_URL);r.get('worker:heartbeat').then(t=>process.exit(t&&Date.now()-Number(t)<120000?0:1)).catch(()=>process.exit(1))"], interval: 30s, timeout: 5s, retries: 4, start_period: 60s }
+  caddy:
+    image: caddy:2-alpine
+    environment: { SITE_ADDRESS: "${SITE_ADDRESS:-:80}" }
+    ports: ["80:80", "443:443", "443:443/udp"]
+    volumes: ["./docker/Caddyfile:/etc/caddy/Caddyfile:ro", "uploads:/srv/uploads:ro", "caddy_data:/data", "caddy_config:/config"]
+    restart: unless-stopped
+    depends_on:
+      web: { condition: service_healthy }
+    healthcheck: { test: ["CMD", "wget", "-qO-", "http://127.0.0.1:2019/config/"], interval: 30s, timeout: 5s, retries: 5 }
+  mailpit:
+    image: axllent/mailpit:v1.27
+    profiles: ["dev"]
+    ports: ["127.0.0.1:8025:8025", "127.0.0.1:1025:1025"]
+    restart: unless-stopped
+    healthcheck: { test: ["CMD", "/mailpit", "readyz"], interval: 30s, timeout: 5s, retries: 3 }
+  backup:
+    image: postgres:16-alpine
+    environment:
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_USER:-novel}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB:-novel}
+    volumes: ["./scripts/backup.sh:/backup.sh:ro", "./backups:/backups"]
+    command: ["sh", "-c", "echo '0 2 * * * sh /backup.sh' > /etc/crontabs/root && crond -f -l 2"]
+    restart: unless-stopped
+    depends_on:
+      postgres: { condition: service_healthy }
+volumes:
+  db:
+  redis:
+  uploads:
+  caddy_data:
+  caddy_config:

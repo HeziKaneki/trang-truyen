@@ -1,0 +1,10 @@
+import { config } from 'dotenv';
+config({ path: '.env.test' });
+process.env.APP_URL ??= 'http://localhost:3000';
+process.env.AUTH_SECRET ??= 'test-secret-only-not-for-production-123456789';
+process.env.DATABASE_URL ??= 'postgresql://novel:test@localhost:5432/novel_test';
+process.env.REDIS_URL ??= 'redis://localhost:6379/15';
+process.env.SMTP_HOST ??= 'localhost';
+process.env.SMTP_FROM ??= 'test@example.com';
+process.env.ADMIN_EMAIL ??= 'admin@example.com';
+process.env.ADMIN_PASSWORD ??= 'test-admin-password-123';
